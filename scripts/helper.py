@@ -1,9 +1,12 @@
 import re
-#import rosbag 
-#import sensor_msgs.point_cloud2 as pc2
 import itertools
 from operator import itemgetter
-#from tf.transformations import euler_from_quaternion
+try:  # ROS 1, only needed for the Jackal rosbags
+    import rosbag
+    import sensor_msgs.point_cloud2 as pc2
+    from tf.transformations import euler_from_quaternion
+except ImportError:
+    rosbag = pc2 = euler_from_quaternion = None
 import os
 # import cupyx.scipy.signal
 import numpy as np
@@ -29,7 +32,10 @@ import random
 import pickle 
 import json 
 import cupy as cp
-from cusignal import fftconvolve
+try:  # cuSignal was archived and merged into CuPy (cupyx.scipy.signal, CuPy >= 13)
+    from cupyx.scipy.signal import fftconvolve
+except ImportError:
+    from cusignal import fftconvolve
 # from cupyx.scipy.signal import oaconvolve
 # import cupyx
 import cv2
@@ -78,7 +84,7 @@ class LiDAR_PlaceRec():
             self.xrAll,self.yrAll, self.rollR, self.pitchR, self.yawRAll= self.scanPoses('All')
             self.framesRef = self.subsample_everyN(self.xrAll, self.yrAll, refRad)
 
-        elif datasetName == 'NCLT' or 'OxfordRadar':
+        elif datasetName in ('NCLT', 'OxfordRadar'):
             self.framesRef=framesRef
         else:
             filenames = os.listdir(refFilenames[0])
@@ -984,7 +990,7 @@ class LiDAR_PlaceRec():
             # centerXs, centerYs = zip(*centerXY)
             queryScan= self.loadingCroppingFiltering_2DScan('QUERY', i, rotDeg=heading)
             # queryScan=np.array(queryScan, dtype=np.uint8)
-            maxY, maxX, alignMatch, allCor = self.scanMatchWithConvolution(self.refgridFull, i, rotQuery=queryScan, n=n)
+            maxY, maxX, alignMatch, allCor = self.scanMatchWithConvolution(self.refgridFull, i, rotQuery=queryScan)
             # matchConv=allCor[centerYs[idx]-(self.scanDimY):centerYs[idx]+(self.scanDimY), centerXs[idx]-(self.scanDimX):centerXs[idx]+(self.scanDimX)]
             return refMatchCorr, allCor, dist
         
@@ -1101,10 +1107,10 @@ def random_downsample(array, n, numPtsMultiplier, downsampleType=None):
                 ones_indices = np.argwhere(region == 1)
                 if downsampleType =='ordered':
                     # Determine the number of points to select
-                    num_points_to_select = n * numPtsMultiplier
-                    # Select evenly spaced points
+                    num_points_to_select = int(n * numPtsMultiplier)
+                    # Select evenly spaced points (indices into ones_indices, like the random branch)
                     step = max(1, len(ones_indices) // num_points_to_select)
-                    sampled_indices = ones_indices[::step][:num_points_to_select]
+                    sampled_indices = np.arange(0, len(ones_indices), step)[:num_points_to_select]
                 else:
                     # Randomly select n indices
                     sampled_indices = np.random.choice(len(ones_indices), int(n*numPtsMultiplier), replace=False)
@@ -1366,6 +1372,35 @@ def runWildPlacesHPC(datasetName, refNum, queryNum, envName, savePath, configPat
         
     print(f'done - refNum:{refNum}, queryNum:{queryNum}' )
  
+
+def ablateRefQuerySplit(datasetName, refNum, queryNum, querySaveFilepath):
+    '''Saves the query frames between the first and last evaluation queries that are not evaluation queries.'''
+    if not os.path.exists(querySaveFilepath):
+        with open('./scripts/config.json') as f:
+            config = json.load(f)
+        config=config.get(datasetName, {})
+        queryFilenames = config.get('details', {}).get(str(queryNum), [])
+
+        with open(config.get('evalInfoFile'), 'rb') as f:
+            evalInfo = pickle.load(f)[queryNum-1]
+
+        all_files = os.listdir(queryFilenames[0])
+        framesQuery = []
+        for k in range(len(evalInfo)):
+            try:
+                if evalInfo[k][refNum-1] != []:
+                    index = all_files.index(evalInfo[k]['query'].split('/')[-1])
+                    framesQuery.append(index)
+            except ValueError:
+                pass
+
+        framesAblateQuery=[]
+        for j in range(framesQuery[0], framesQuery[-1]):
+            if j not in framesQuery:
+                framesAblateQuery.append(j)
+
+        np.save(querySaveFilepath,np.array(framesAblateQuery))
+
 
 def ablateWithWildPlaces(refNum, queryNum):
     datasetName = 'WildPlaces_Venman'
