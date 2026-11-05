@@ -6,14 +6,12 @@ Place recognition is an important task within autonomous navigation, involving t
 
 ## Installation
 
-The search runs on an NVIDIA GPU through CuPy.
-
 ```bash
-pip install numpy scipy pandas openpyxl matplotlib scikit-image opencv-python open3d imutils pykitti
-pip install cupy-cuda12x   # match your CUDA version; cupyx.scipy.signal replaces the archived cuSignal
+pip install -r requirements.txt
+pip install cupy-cuda12x   # optional, for the GPU: match your CUDA version
 ```
 
-The Jackal rosbag loader also needs ROS 1 (`rosbag`, `sensor_msgs`, `tf`); the other datasets do not.
+The search runs on an NVIDIA GPU through CuPy. Without CuPy, or with `MFLPR_DEVICE=cpu`, the same steps run in NumPy/SciPy on the CPU: the same algorithm, results equal up to floating-point rounding, but much slower, so use it to try the code or debug rather than for full runs. The Jackal rosbag loader also needs ROS 1 (`rosbag`, `sensor_msgs`, `tf`); the dataset-specific loaders (Open3D, OpenCV, pykitti) are only needed for their own dataset.
 
 ## Data
 
@@ -24,11 +22,20 @@ Download the datasets ([NCLT](http://robots.engin.umich.edu/nclt/), [Oxford Rada
 Run from the repository root:
 
 ```bash
-python scripts/test.py       # place recognition and relative pose for the dataset chosen in main()
-python scripts/evaluate.py   # recall and error plots from the saved results
+python scripts/test.py --dataset NCLT --ref 10 --query 6        # one reference/query pair
+python scripts/test.py --dataset WildPlaces_Venman --ref 1 --query 2 --no-excel
+python scripts/evaluate.py                                       # recall and error plots from saved results
 ```
 
-`test.py` first saves the reference and query frame splits (`save_ref_query_split`), then writes one row per query to an Excel file under `results/`.
+`--dataset` is a top-level key of `scripts/config.json`, and `--ref`/`--query` are run numbers under its `details`. For NCLT and Oxford Radar, `test.py` first saves the reference and query frame splits, then writes one row per query to an Excel file under `results/`. Run `python scripts/test.py --help` for all options.
+
+## Tests
+
+A few checks on synthetic point clouds (descriptor, downsampling, rotation, recovering a known translation) run in seconds with no dataset or GPU:
+
+```bash
+MFLPR_DEVICE=cpu python -m unittest discover -s tests -v
+```
 
 ## Citation
 

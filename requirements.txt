@@ -1,0 +1,12 @@
+numpy
+scipy
+pandas
+openpyxl
+matplotlib
+scikit-image
+# GPU search (optional: without it the same steps run in NumPy/SciPy on the CPU). Pick the wheel for your CUDA.
+# cupy-cuda12x
+# per-dataset loaders, only needed for that dataset
+open3d          # Wild-Places (.pcd)
+opencv-python   # Oxford Radar (.png scans)
+pykitti         # KITTI

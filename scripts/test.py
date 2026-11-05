@@ -40,6 +40,7 @@ class LiDARPlaceRecognitionProcessor:
         self.logger = logging.getLogger(__name__)
 
         # Load configuration
+        self.config_path = config_path
         with open(config_path) as f:
             self.config = json.load(f).get(dataset_name, {})
         
@@ -398,7 +399,7 @@ class LiDARPlaceRecognitionProcessor:
                 os.remove(ref_save_path)
 
         # Load configuration
-        with open('./scripts/config.json') as f:
+        with open(self.config_path) as f:
             config = json.load(f)
         
         # Get dataset-specific configuration
@@ -478,39 +479,28 @@ class LiDARPlaceRecognitionProcessor:
         return query_save_path, ref_save_path
 
 
-# Example usage
 def main():
-    """Example usage of LiDARPlaceRecognitionProcessor"""
-    # Example for WildPlaces dataset
-    # processor_wild = LiDARPlaceRecognitionProcessor(
-    #     dataset_name='WildPlaces_Venman', 
-    #     ref_num=1, 
-    #     query_num=2
-    # )
-    # results_wild = processor_wild.process_place_recognition(save_excel=False)
+    """Command line: choose the dataset, reference and query runs without editing the script.
 
-    # Example for NCLT dataset
-    # processor_nclt = LiDARPlaceRecognitionProcessor(
-    #     dataset_name='NCLT', 
-    #     ref_num=10, 
-    #     query_num=6
-    # )
-    # processor_nclt.save_ref_query_split()
-    # results_nclt = processor_nclt.process_place_recognition(save_excel=True)
+    The defaults reproduce the previous hard-coded run (Oxford Radar, reference 6, query 1).
+    """
+    import argparse
+    ap = argparse.ArgumentParser(description='Matched-filter LiDAR place recognition: one reference/query pair.')
+    ap.add_argument('--dataset', default='OxfordRadar',
+                    help='a top-level key of the config, e.g. NCLT, OxfordRadar, WildPlaces_Venman')
+    ap.add_argument('--ref', type=int, default=6, help='reference run number (a key under "details")')
+    ap.add_argument('--query', type=int, default=1, help='query run number')
+    ap.add_argument('--config', default='./scripts/config.json')
+    ap.add_argument('--results', default='./results', help='folder for frame splits and the Excel results')
+    ap.add_argument('--no-excel', action='store_true', help='keep results in memory instead of writing Excel')
+    a = ap.parse_args()
 
-    # Example for OxfordRadar dataset
-    processor_nclt = LiDARPlaceRecognitionProcessor(
-        dataset_name='OxfordRadar', 
-        ref_num=6, 
-        query_num=1
-    )
-    processor_nclt.save_ref_query_split()
-    results_nclt = processor_nclt.process_place_recognition(save_excel=True)
+    processor = LiDARPlaceRecognitionProcessor(config_path=a.config, dataset_name=a.dataset, ref_num=a.ref,
+                                               query_num=a.query, save_base_path=a.results)
+    if not a.dataset.startswith('WildPlaces'):  # Wild-Places takes its queries from the benchmark pickle
+        processor.save_ref_query_split()
+    processor.process_place_recognition(save_excel=not a.no_excel)
 
 
 if __name__ == "__main__":
     main()
-
-
-
-

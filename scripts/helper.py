@@ -17,7 +17,10 @@ from scipy import interpolate
 import matplotlib.pyplot as plt 
 from scipy import signal, stats, spatial, ndimage 
 import matplotlib.animation as animation
-import open3d as o3d
+try:  # only the Wild-Places loader reads .pcd files
+    import open3d as o3d
+except ImportError:
+    o3d = None
 import time
 import pandas as pd
 import matplotlib.patches as patches
@@ -26,19 +29,34 @@ from matplotlib.gridspec import GridSpec
 import math
 from concurrent.futures import ThreadPoolExecutor
 import ast 
-import pykitti
-import imutils
+try:  # only the KITTI loader
+    import pykitti
+except ImportError:
+    pykitti = None
 import random 
 import pickle 
 import json 
-import cupy as cp
-try:  # cuSignal was archived and merged into CuPy (cupyx.scipy.signal, CuPy >= 13)
-    from cupyx.scipy.signal import fftconvolve
+# The search runs on the GPU through CuPy. Without CuPy, or with MFLPR_DEVICE=cpu, the same operations run in
+# NumPy/SciPy instead: identical algorithm, results equal up to floating-point rounding, much slower.
+cp = None
+if os.environ.get('MFLPR_DEVICE', 'gpu').lower() != 'cpu':
+    try:
+        import cupy as cp
+        try:  # cuSignal was archived and merged into CuPy (cupyx.scipy.signal, CuPy >= 13)
+            from cupyx.scipy.signal import fftconvolve
+        except ImportError:
+            from cusignal import fftconvolve
+    except ImportError:
+        cp = None
+if cp is None:
+    import types
+    from scipy.signal import fftconvolve
+    cp = types.SimpleNamespace(asarray=np.asarray, asnumpy=np.asarray, fliplr=np.fliplr, flipud=np.flipud,
+                               argpartition=np.argpartition, argsort=np.argsort, unravel_index=np.unravel_index)
+try:  # only the Oxford Radar loader
+    import cv2
 except ImportError:
-    from cusignal import fftconvolve
-# from cupyx.scipy.signal import oaconvolve
-# import cupyx
-import cv2
+    cv2 = None
 import skimage 
 np.random.seed(1)
 
